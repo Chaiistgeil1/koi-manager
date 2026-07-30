@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jai's Koi Manager</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+<div class="background"></div>
+
+<header>
+
+    <div class="title">
+
+        <h1>🐟 Jai's Koi Manager</h1>
+
+        <p>Manage your entire koi collection with photos, measurements and notes.</p>
+
+    </div>
+
+    <div class="top-buttons">
+
+        <button id="addFishBtn">
+            + Add Fish
+        </button>
+
+        <button id="exportBtn">
+            Export
+        </button>
+
+        <button id="importBtn">
+            Import
+        </button>
+
+        <input type="file"
+               id="importFile"
+               accept=".json"
+               hidden>
+
+    </div>
+
+</header>
+
+<section class="dashboard">
+
+    <div class="stat">
+
+        <h2 id="totalFish">0</h2>
+
+        <p>Total Fish</p>
+
+    </div>
+
+    <div class="stat">
+
+        <h2 id="aliveFish">0</h2>
+
+        <p>Alive</p>
+
+    </div>
+
+    <div class="stat">
+
+        <h2 id="deadFish">0</h2>
+
+        <p>Deceased</p>
+
+    </div>
+
+    <div class="stat">
+
+        <h2 id="largestFish">0 cm</h2>
+
+        <p>Largest Fish</p>
+
+    </div>
+
+</section>
+
+<section class="toolbar">
+
+<input
+type="text"
+id="searchInput"
+placeholder="Search by name, variety or notes...">
+
+<select id="sortSelect">
+
+<option value="name">
+Sort by Name
+</option>
+
+<option value="length">
+Sort by Length
+</option>
+
+<option value="date">
+Sort by Date Added
+</option>
+
+<option value="variety">
+Sort by Variety
+</option>
+
+</select>
+
+<select id="filterSelect">
+
+<option value="all">
+All Fish
+</option>
+
+<option value="alive">
+Alive
+</option>
+
+<option value="deceased">
+Deceased
+</option>
+
+</select>
+
+</section>
+
+<main>
+
+<div id="fishContainer">
+
+</div>
+
+</main>
+
+<div
+id="fishModal"
+class="modal hidden">
+
+<div class="modal-content">
+
+<h2 id="modalTitle">
+
+Add Fish
+
+</h2>
+
+<label>
+
+Name
+
+<input
+type="text"
+id="fishName">
+
+</label>
+
+<label>
+
+Variety
+
+<input
+type="text"
+id="fishVariety">
+
+</label>
+
+<label>
+
+Length (cm)
+
+<input
+type="number"
+id="fishLength">
+
+</label>
+
+<label>
+
+Date Added
+
+<input
+type="date"
+id="fishDate">
+
+</label>
+
+<label>
+
+Status
+
+<select id="fishStatus">
+
+<option value="alive">
+Alive
+</option>
+
+<option value="deceased">
+Deceased
+</option>
+
+</select>
+
+</label>
+
+<label>
+
+Notes
+
+<textarea
+id="fishNotes"
+rows="4">
+
+</textarea>
+
+</label>
+
+<label>
+
+Photo
+
+<input
+type="file"
+id="fishImage"
+accept="image/*">
+
+</label>
+
+<div class="modal-buttons">
+
+<button id="saveFish">
+
+Save
+
+</button>
+
+<button id="cancelFish">
+
+Cancel
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+<script src="data.js"></script>
+
+<script src="script.js"></script>
+
+</body>
+</html>
