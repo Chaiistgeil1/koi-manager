@@ -1245,8 +1245,6 @@ function openStatisticsModal() {
     const totalPhotos = Object.values(fishGalleries).flat().length;
 
     const sortedWaterLogs = [...waterLogs].sort((a, b) => a.date.localeCompare(b.date));
-    const phSparkline = buildSparklinePath(sortedWaterLogs.map(w => w.ph), 260, 60);
-    const latest = sortedWaterLogs[sortedWaterLogs.length - 1];
 
     const statRow = (param, label, value, unit) => `
         <div class="stats-row">
@@ -1254,6 +1252,36 @@ function openStatisticsModal() {
             <span class="${isHealthyReading(param, value) ? '' : 'stats-warn'}">${value}${unit}</span>
         </div>
     `;
+
+    const buildTrendCard = (label, unit, param, logs) => {
+        const values = logs.map(w => w[param]).filter(v => typeof v === 'number');
+        if (!values.length) return '';
+        const latestVal = values[values.length - 1];
+        const warn = !isHealthyReading(param, latestVal);
+        const path = buildSparklinePath(values, 220, 44);
+        return `
+            <div class="trend-card">
+                <div class="trend-card-header">
+                    <span>${label}</span>
+                    <span class="${warn ? 'stats-warn' : ''}">${latestVal}${unit}</span>
+                </div>
+                ${path ? `
+                    <svg viewBox="0 0 220 44" class="stats-sparkline trend-sparkline" preserveAspectRatio="none">
+                        <path d="${path}" fill="none" stroke="${warn ? '#e74c3c' : '#f2b155'}" stroke-width="2"/>
+                    </svg>
+                ` : '<div class="trend-no-data">Log one more reading to see a trend</div>'}
+            </div>
+        `;
+    };
+
+    const trendCards = [
+        buildTrendCard('pH', '', 'ph', sortedWaterLogs),
+        buildTrendCard('Ammonia', ' ppm', 'ammonia', sortedWaterLogs),
+        buildTrendCard('Nitrite', ' ppm', 'nitrite', sortedWaterLogs),
+        buildTrendCard('Nitrate', ' ppm', 'nitrate', sortedWaterLogs),
+        buildTrendCard('Salinity', ' ppt', 'salinity', sortedWaterLogs),
+        buildTrendCard('Temperature', '°C', 'temperature', sortedWaterLogs)
+    ].join('');
 
     const modal = document.createElement('div');
     modal.id = 'statisticsModal';
@@ -1288,21 +1316,8 @@ function openStatisticsModal() {
             <div class="schedule-section">
                 <h3>💧 Water Quality Trends</h3>
                 ${sortedWaterLogs.length ? `
-                    ${phSparkline ? `
-                        <div class="stats-sublist-title">pH over time (${sortedWaterLogs.length} readings)</div>
-                        <svg viewBox="0 0 260 60" class="stats-sparkline" preserveAspectRatio="none">
-                            <path d="${phSparkline}" fill="none" stroke="#f2b155" stroke-width="2"/>
-                        </svg>
-                    ` : ''}
-                    <div class="stats-sublist">
-                        <div class="stats-sublist-title">Latest Reading (${latest.date})</div>
-                        ${statRow('ph', 'pH', latest.ph, '')}
-                        ${statRow('ammonia', 'Ammonia', latest.ammonia, ' ppm')}
-                        ${statRow('nitrite', 'Nitrite', latest.nitrite, ' ppm')}
-                        ${statRow('nitrate', 'Nitrate', latest.nitrate, ' ppm')}
-                        ${typeof latest.salinity === 'number' ? statRow('salinity', 'Salinity', latest.salinity, ' ppt') : ''}
-                        <div class="stats-row"><span>Temperature</span><span>${latest.temperature}°C</span></div>
-                    </div>
+                    <div class="stats-sublist-title">${sortedWaterLogs.length} reading${sortedWaterLogs.length === 1 ? '' : 's'} logged</div>
+                    <div class="trend-grid">${trendCards}</div>
                     <div class="stats-sublist">
                         <div class="stats-sublist-title">History</div>
                         ${sortedWaterLogs.slice().reverse().map(w => `
@@ -1991,6 +2006,36 @@ scheduleStyle.textContent = `
         outline: none;
         border-color: #e8935a;
         background: rgba(255, 255, 255, 0.08);
+    }
+    .trend-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
+        margin: 12px 0 16px;
+    }
+    .trend-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 12px 14px;
+    }
+    .trend-card-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.88em;
+        color: #cbb896;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+    .trend-sparkline {
+        width: 100%;
+        height: 44px;
+        margin-bottom: 0;
+        display: block;
+    }
+    .trend-no-data {
+        color: #8fa39a;
+        font-size: 0.78em;
     }
 `;
 document.head.appendChild(scheduleStyle);
