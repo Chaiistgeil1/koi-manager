@@ -1334,37 +1334,9 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// ===== ADD BULK ACTION BUTTONS =====
-const bulkActionsDiv = document.createElement('div');
-bulkActionsDiv.style.cssText = 'display:flex;gap:10px;margin-top:15px;flex-wrap:wrap;';
-bulkActionsDiv.innerHTML = `
-    <button id="bulkGrowthBtn" class="bulk-btn">📏 Bulk Growth</button>
-    <button id="bulkFeedBtn" class="bulk-btn">🍽️ Feed All</button>
-    <button id="waterQualityBtn" class="bulk-btn">💧 Water Quality</button>
-    <button id="addReminderBtn" class="bulk-btn">📅 Reminder</button>
-`;
-
-document.querySelector('.toolbar').appendChild(bulkActionsDiv);
-
-// Style bulk buttons
+// Style fish card buttons
 const style = document.createElement('style');
 style.textContent = `
-    .bulk-btn {
-        padding: 8px 16px;
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.15);
-        color: #e0e0e0;
-        border-radius: 8px;
-        cursor: pointer;
-        font-family: 'Poppins', sans-serif;
-        font-size: 0.85em;
-        font-weight: 500;
-        transition: all 0.3s;
-    }
-    .bulk-btn:hover {
-        background: rgba(255,255,255,0.12);
-        border-color: rgba(255,255,255,0.25);
-    }
     .card-btn {
         padding: 8px 12px;
         border: none;
@@ -1394,11 +1366,6 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
-
-document.getElementById('bulkGrowthBtn').addEventListener('click', bulkUpdateLength);
-document.getElementById('bulkFeedBtn').addEventListener('click', markAllFed);
-document.getElementById('waterQualityBtn').addEventListener('click', logWaterQuality);
-document.getElementById('addReminderBtn').addEventListener('click', addReminder);
 
 // Add Statistics button to header
 const statsBtn = document.createElement('button');
