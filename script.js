@@ -103,10 +103,10 @@ const DEFAULT_FEEDING_SCHEDULE = [
 ];
 
 function metaSnapshotToState(metaData) {
-    pondSections = (metaData && metaData.pondSections) || DEFAULT_POND_SECTIONS;
+    pondSections = (metaData && metaData.pondSections && metaData.pondSections.length) ? metaData.pondSections : DEFAULT_POND_SECTIONS;
     waterLogs = (metaData && metaData.waterLogs) || [];
     reminders = (metaData && metaData.reminders) || [];
-    feedingSchedule = (metaData && metaData.feedingSchedule) || DEFAULT_FEEDING_SCHEDULE;
+    feedingSchedule = (metaData && metaData.feedingSchedule && metaData.feedingSchedule.length) ? metaData.feedingSchedule : DEFAULT_FEEDING_SCHEDULE;
 }
 
 async function syncAllToFirestore() {
