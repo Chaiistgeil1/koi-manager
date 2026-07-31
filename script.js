@@ -1329,6 +1329,299 @@ statsBtn.addEventListener('mouseleave', () => {
 
 document.querySelector('.top-buttons').appendChild(statsBtn);
 
+// ===== SCHEDULE / CALENDAR =====
+const SCHEDULE_EVENT_META = {
+    reminder: { icon: '📅', color: '#64b5f6' },
+    concern: { icon: '🚨', color: '#e74c3c' },
+    health: { icon: '🏥', color: '#2ecc71' },
+    feeding: { icon: '🍽️', color: '#f39c12' },
+    water: { icon: '💧', color: '#00bcd4' },
+    added: { icon: '🐟', color: '#8899aa' }
+};
+
+function buildScheduleEvents() {
+    const events = [];
+
+    reminders.forEach(r => {
+        events.push({
+            date: r.date,
+            type: 'reminder',
+            completed: r.completed,
+            refId: r.id,
+            title: r.title,
+            subtitle: r.type || 'Reminder'
+        });
+    });
+
+    healthRecords.forEach(r => {
+        const fish = fishData.find(f => f.id === r.fishId);
+        const isConcern = r.status && r.status.toLowerCase() !== 'healthy';
+        events.push({
+            date: r.date,
+            type: isConcern ? 'concern' : 'health',
+            title: `${fish ? fish.name : 'Unknown fish'} — ${r.status}`,
+            subtitle: r.notes || ''
+        });
+    });
+
+    feedingLogs.forEach(log => {
+        const fish = fishData.find(f => f.id === log.fishId);
+        events.push({
+            date: log.date,
+            type: 'feeding',
+            title: `Fed ${fish ? fish.name : 'a fish'}`,
+            subtitle: log.food + (log.notes ? ' — ' + log.notes : '')
+        });
+    });
+
+    waterLogs.forEach(w => {
+        events.push({
+            date: w.date,
+            type: 'water',
+            title: 'Water quality check',
+            subtitle: `pH ${w.ph} · Ammonia ${w.ammonia} · Nitrite ${w.nitrite} · Nitrate ${w.nitrate} · ${w.temperature}°C`
+        });
+    });
+
+    fishData.forEach(f => {
+        if (f.date) {
+            events.push({
+                date: f.date,
+                type: 'added',
+                title: `${f.name} added to collection`,
+                subtitle: f.variety
+            });
+        }
+    });
+
+    return events.filter(e => e.date);
+}
+
+function renderScheduleEvent(e, showCheckbox, today) {
+    const meta = SCHEDULE_EVENT_META[e.type];
+    const overdue = e.type === 'reminder' && !e.completed && e.date < today;
+    return `
+        <div class="schedule-item" style="border-left-color:${overdue ? '#e74c3c' : meta.color}">
+            <div class="schedule-item-icon">${meta.icon}</div>
+            <div class="schedule-item-body">
+                <div class="schedule-item-title">${e.title}${overdue ? ' <span class="schedule-overdue">Overdue</span>' : ''}</div>
+                ${e.subtitle ? `<div class="schedule-item-subtitle">${e.subtitle}</div>` : ''}
+                <div class="schedule-item-date">${e.date}</div>
+            </div>
+            ${showCheckbox ? `<button class="schedule-complete-btn" onclick="completeReminderFromSchedule(${e.refId})" title="Mark done">✓</button>` : ''}
+        </div>
+    `;
+}
+
+function openScheduleModal() {
+    const existingModal = document.getElementById('scheduleModal');
+    if (existingModal) existingModal.remove();
+
+    const today = new Date().toISOString().split('T')[0];
+    const events = buildScheduleEvents();
+
+    const upcoming = events
+        .filter(e => e.type === 'reminder' && !e.completed)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    const history = events
+        .filter(e => e.type !== 'reminder' || e.completed)
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+    const modal = document.createElement('div');
+    modal.id = 'scheduleModal';
+    modal.className = 'schedule-modal';
+    modal.innerHTML = `
+        <div class="schedule-overlay" onclick="closeScheduleModal()"></div>
+        <div class="schedule-content">
+            <button class="schedule-close" onclick="closeScheduleModal()">&times;</button>
+            <h2>📅 Schedule</h2>
+
+            <div class="schedule-section">
+                <h3>⏰ Upcoming &amp; Overdue Reminders</h3>
+                ${upcoming.length ? upcoming.map(e => renderScheduleEvent(e, true, today)).join('') : '<p class="schedule-empty">Nothing scheduled — add a reminder to get started.</p>'}
+            </div>
+
+            <div class="schedule-section">
+                <h3>📜 History</h3>
+                ${history.length ? history.map(e => renderScheduleEvent(e, false, today)).join('') : '<p class="schedule-empty">No history yet.</p>'}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    setTimeout(() => {
+        const overlay = modal.querySelector('.schedule-overlay');
+        if (overlay) overlay.style.opacity = '1';
+    }, 10);
+}
+
+function closeScheduleModal() {
+    const modal = document.getElementById('scheduleModal');
+    if (modal) modal.remove();
+}
+
+function completeReminderFromSchedule(id) {
+    const reminder = reminders.find(r => r.id === id);
+    if (reminder) {
+        reminder.completed = true;
+        saveReminders();
+        openScheduleModal();
+        showNotification('✅ Reminder completed');
+    }
+}
+
+const scheduleStyle = document.createElement('style');
+scheduleStyle.textContent = `
+    .schedule-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 40px 20px;
+        animation: fadeIn 0.3s ease;
+    }
+    .schedule-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(8px);
+    }
+    .schedule-content {
+        position: relative;
+        z-index: 1;
+        background: linear-gradient(145deg, #132f4c, #0d2137);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 600px;
+        width: 100%;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        animation: slideUp 0.3s ease;
+    }
+    .schedule-content h2 {
+        font-size: 1.8em;
+        font-weight: 600;
+        margin-bottom: 20px;
+        color: #64b5f6;
+    }
+    .schedule-close {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.08);
+        border: none;
+        color: #e0e0e0;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        font-size: 1.3em;
+        cursor: pointer;
+    }
+    .schedule-close:hover {
+        background: rgba(255, 255, 255, 0.15);
+    }
+    .schedule-section {
+        margin-bottom: 28px;
+    }
+    .schedule-section h3 {
+        font-size: 1.05em;
+        color: #b0c4de;
+        margin-bottom: 12px;
+        font-weight: 600;
+    }
+    .schedule-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        border-left: 3px solid #64b5f6;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 8px;
+    }
+    .schedule-item-icon {
+        font-size: 1.3em;
+        line-height: 1;
+    }
+    .schedule-item-body {
+        flex: 1;
+        min-width: 0;
+    }
+    .schedule-item-title {
+        font-weight: 500;
+        color: #e0e0e0;
+    }
+    .schedule-item-subtitle {
+        color: #8899aa;
+        font-size: 0.85em;
+        margin-top: 2px;
+    }
+    .schedule-item-date {
+        color: #64b5f6;
+        font-size: 0.78em;
+        margin-top: 4px;
+    }
+    .schedule-overdue {
+        background: rgba(231, 76, 60, 0.2);
+        color: #e74c3c;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 0.75em;
+        margin-left: 6px;
+    }
+    .schedule-complete-btn {
+        background: rgba(46, 204, 113, 0.2);
+        border: 1px solid rgba(46, 204, 113, 0.4);
+        color: #2ecc71;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 0.9em;
+        flex-shrink: 0;
+    }
+    .schedule-complete-btn:hover {
+        background: rgba(46, 204, 113, 0.35);
+    }
+    .schedule-empty {
+        color: #8899aa;
+        font-size: 0.9em;
+    }
+`;
+document.head.appendChild(scheduleStyle);
+
+const scheduleBtn = document.createElement('button');
+scheduleBtn.textContent = '📅 Schedule';
+scheduleBtn.onclick = openScheduleModal;
+scheduleBtn.style.cssText = `
+    padding: 10px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+    color: #e0e0e0;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: all 0.3s;
+`;
+scheduleBtn.addEventListener('mouseenter', () => {
+    scheduleBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+});
+scheduleBtn.addEventListener('mouseleave', () => {
+    scheduleBtn.style.background = 'rgba(255, 255, 255, 0.05)';
+});
+
+document.querySelector('.top-buttons').appendChild(scheduleBtn);
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('scheduleModal')) closeScheduleModal();
+});
+
 // ===== INITIALIZE EVERYTHING =====
 function init() {
     const configured = typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey && firebaseConfig.apiKey !== 'YOUR_API_KEY';
