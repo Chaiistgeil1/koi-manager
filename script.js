@@ -509,8 +509,8 @@ function renderFish() {
         
         card.innerHTML = `
             <div class="card-image">
-                ${fish.image
-                    ? `<img src="${fish.image}" alt="${fish.name}" loading="lazy">`
+                ${fish.image 
+                    ? `<img src="${fish.image}" alt="${fish.name}" loading="lazy">` 
                     : '<div class="no-image">🐟</div>'}
                 <span class="card-badge ${fish.status === 'alive' ? 'badge-alive' : 'badge-deceased'}">
                     ${fish.status === 'alive' ? 'Alive' : 'Deceased'}
