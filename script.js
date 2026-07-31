@@ -1165,43 +1165,117 @@ function checkReminders() {
     }
 }
 
-function showStatistics() {
+// Typical safe ranges for a koi pond
+function isHealthyReading(param, value) {
+    switch (param) {
+        case 'ph': return value >= 7.0 && value <= 8.5;
+        case 'ammonia': return value <= 0.25;
+        case 'nitrite': return value <= 0.25;
+        case 'nitrate': return value <= 40;
+        default: return true;
+    }
+}
+
+function buildSparklinePath(values, width, height) {
+    if (values.length < 2) return '';
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const stepX = width / (values.length - 1);
+    return values.map((v, i) => {
+        const x = i * stepX;
+        const y = height - ((v - min) / range) * height;
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+}
+
+function openStatisticsModal() {
+    const existingModal = document.getElementById('statisticsModal');
+    if (existingModal) existingModal.remove();
+
     const totalLength = fishData.reduce((sum, f) => sum + f.length, 0);
     const avgLength = fishData.length > 0 ? (totalLength / fishData.length).toFixed(1) : 0;
+    const largest = fishData.length ? Math.max(...fishData.map(f => f.length)) : 0;
     const varieties = {};
-    
-    fishData.forEach(f => {
-        varieties[f.variety] = (varieties[f.variety] || 0) + 1;
-    });
-    
-    const topVarieties = Object.entries(varieties)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
-    
-    const totalFeedings = feedingLogs.length;
-    const totalHealthChecks = healthRecords.length;
+    fishData.forEach(f => { varieties[f.variety] = (varieties[f.variety] || 0) + 1; });
+    const topVarieties = Object.entries(varieties).sort((a, b) => b[1] - a[1]).slice(0, 6);
     const totalCosts = costRecords.reduce((sum, r) => sum + r.amount, 0);
     const totalPhotos = Object.values(fishGalleries).flat().length;
-    
-    alert(`
-📊 Collection Statistics
 
-Total Fish: ${fishData.length}
-Alive: ${fishData.filter(f => f.status === 'alive').length}
-Deceased: ${fishData.filter(f => f.status === 'deceased').length}
+    const sortedWaterLogs = [...waterLogs].sort((a, b) => a.date.localeCompare(b.date));
+    const phSparkline = buildSparklinePath(sortedWaterLogs.map(w => w.ph), 260, 60);
+    const latest = sortedWaterLogs[sortedWaterLogs.length - 1];
 
-Average Length: ${avgLength} cm
-Total Biomass: ${totalLength} cm
-Largest Fish: ${Math.max(...fishData.map(f => f.length))} cm
+    const statRow = (param, label, value, unit) => `
+        <div class="stats-row">
+            <span>${label}</span>
+            <span class="${isHealthyReading(param, value) ? '' : 'stats-warn'}">${value}${unit}</span>
+        </div>
+    `;
 
-Top Varieties:
-${topVarieties.map(([v, c]) => `• ${v}: ${c} fish`).join('\n')}
+    const modal = document.createElement('div');
+    modal.id = 'statisticsModal';
+    modal.className = 'schedule-modal';
+    modal.innerHTML = `
+        <div class="schedule-overlay" onclick="closeStatisticsModal()"></div>
+        <div class="schedule-content">
+            <button class="schedule-close" onclick="closeStatisticsModal()">&times;</button>
+            <h2>📊 Statistics</h2>
 
-Total Feedings Logged: ${totalFeedings}
-Health Checks: ${totalHealthChecks}
-Gallery Photos: ${totalPhotos}
-Total Costs: $${totalCosts.toFixed(2)}
-    `);
+            <div class="schedule-section">
+                <h3>🐟 Collection</h3>
+                <div class="stats-grid">
+                    <div class="stats-card"><div class="stats-value">${fishData.length}</div><div class="stats-label">Total Fish</div></div>
+                    <div class="stats-card"><div class="stats-value">${fishData.filter(f => f.status === 'alive').length}</div><div class="stats-label">Alive</div></div>
+                    <div class="stats-card"><div class="stats-value">${fishData.filter(f => f.status === 'deceased').length}</div><div class="stats-label">Deceased</div></div>
+                    <div class="stats-card"><div class="stats-value">${largest} cm</div><div class="stats-label">Largest</div></div>
+                    <div class="stats-card"><div class="stats-value">${avgLength} cm</div><div class="stats-label">Avg Length</div></div>
+                    <div class="stats-card"><div class="stats-value">$${totalCosts.toFixed(0)}</div><div class="stats-label">Total Cost</div></div>
+                </div>
+                <div class="stats-sublist">
+                    <div class="stats-sublist-title">Top Varieties</div>
+                    ${topVarieties.map(([v, c]) => `<div class="stats-row"><span>${v}</span><span>${c}</span></div>`).join('')}
+                </div>
+                <div class="stats-sublist">
+                    <div class="stats-row"><span>Feedings Logged</span><span>${feedingLogs.length}</span></div>
+                    <div class="stats-row"><span>Health Checks</span><span>${healthRecords.length}</span></div>
+                    <div class="stats-row"><span>Gallery Photos</span><span>${totalPhotos}</span></div>
+                </div>
+            </div>
+
+            <div class="schedule-section">
+                <h3>💧 Water Quality Trends</h3>
+                ${sortedWaterLogs.length ? `
+                    ${phSparkline ? `
+                        <div class="stats-sublist-title">pH over time (${sortedWaterLogs.length} readings)</div>
+                        <svg viewBox="0 0 260 60" class="stats-sparkline" preserveAspectRatio="none">
+                            <path d="${phSparkline}" fill="none" stroke="#64b5f6" stroke-width="2"/>
+                        </svg>
+                    ` : ''}
+                    <div class="stats-sublist">
+                        <div class="stats-sublist-title">Latest Reading (${latest.date})</div>
+                        ${statRow('ph', 'pH', latest.ph, '')}
+                        ${statRow('ammonia', 'Ammonia', latest.ammonia, ' ppm')}
+                        ${statRow('nitrite', 'Nitrite', latest.nitrite, ' ppm')}
+                        ${statRow('nitrate', 'Nitrate', latest.nitrate, ' ppm')}
+                        <div class="stats-row"><span>Temperature</span><span>${latest.temperature}°C</span></div>
+                    </div>
+                    <div class="stats-sublist">
+                        <div class="stats-sublist-title">History</div>
+                        ${sortedWaterLogs.slice().reverse().map(w => `
+                            <div class="stats-row"><span>${w.date}</span><span>pH ${w.ph} · NH₃ ${w.ammonia} · NO₂ ${w.nitrite} · NO₃ ${w.nitrate} · ${w.temperature}°C</span></div>
+                        `).join('')}
+                    </div>
+                ` : '<p class="schedule-empty">No water quality readings logged yet — click 💧 Water Quality to add one.</p>'}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function closeStatisticsModal() {
+    const modal = document.getElementById('statisticsModal');
+    if (modal) modal.remove();
 }
 
 // ===== EXPORT / IMPORT =====
@@ -1370,7 +1444,7 @@ document.head.appendChild(style);
 // Add Statistics button to header
 const statsBtn = document.createElement('button');
 statsBtn.textContent = '📊 Statistics';
-statsBtn.onclick = showStatistics;
+statsBtn.onclick = openStatisticsModal;
 statsBtn.style.cssText = `
     padding: 10px 20px;
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1391,6 +1465,30 @@ statsBtn.addEventListener('mouseleave', () => {
 });
 
 document.querySelector('.top-buttons').appendChild(statsBtn);
+
+const waterQualityBtn = document.createElement('button');
+waterQualityBtn.textContent = '💧 Water Quality';
+waterQualityBtn.onclick = logWaterQuality;
+waterQualityBtn.style.cssText = `
+    padding: 10px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+    color: #e0e0e0;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: all 0.3s;
+`;
+waterQualityBtn.addEventListener('mouseenter', () => {
+    waterQualityBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+});
+waterQualityBtn.addEventListener('mouseleave', () => {
+    waterQualityBtn.style.background = 'rgba(255, 255, 255, 0.05)';
+});
+
+document.querySelector('.top-buttons').appendChild(waterQualityBtn);
 
 // ===== SCHEDULE / CALENDAR =====
 const SCHEDULE_EVENT_META = {
@@ -1773,6 +1871,56 @@ scheduleStyle.textContent = `
     }
     .schedule-add-btn:hover {
         background: rgba(255, 255, 255, 0.1);
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+    .stats-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 14px 10px;
+        text-align: center;
+    }
+    .stats-value {
+        font-size: 1.4em;
+        font-weight: 700;
+        color: #64b5f6;
+    }
+    .stats-label {
+        font-size: 0.75em;
+        color: #8899aa;
+        margin-top: 2px;
+    }
+    .stats-sublist {
+        margin-bottom: 16px;
+    }
+    .stats-sublist-title {
+        color: #b0c4de;
+        font-weight: 600;
+        font-size: 0.9em;
+        margin-bottom: 8px;
+    }
+    .stats-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 0.88em;
+        color: #e0e0e0;
+    }
+    .stats-warn {
+        color: #e74c3c;
+        font-weight: 600;
+    }
+    .stats-sparkline {
+        width: 100%;
+        height: 60px;
+        margin-bottom: 12px;
     }
 `;
 document.head.appendChild(scheduleStyle);
