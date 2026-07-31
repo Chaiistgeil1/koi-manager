@@ -215,6 +215,18 @@ function saveCompetitionRecords() { scheduleSync(); }
 function saveCostRecords() { scheduleSync(); }
 function saveReminders() { scheduleSync(); }
 
+// ===== DATE HELPERS =====
+// toISOString() converts to UTC, which silently shifts "today" to the wrong
+// calendar day depending on the user's timezone and time of day. Use this
+// instead anywhere "today" needs to reflect the user's actual local date.
+function getLocalDateString(d) {
+    d = d || new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 // ===== NOTIFICATION SYSTEM =====
 function showNotification(message) {
     let notification = document.getElementById('saveNotification');
@@ -365,7 +377,7 @@ async function saveFish() {
             if (!growthData[fishObj.id]) growthData[fishObj.id] = [];
             growthData[fishObj.id].push({
                 length: fishObj.length,
-                date: fishObj.date || new Date().toISOString().split('T')[0],
+                date: fishObj.date || getLocalDateString(),
                 notes: 'Initial measurement'
             });
             saveGrowthData();
@@ -725,7 +737,7 @@ function addMeasurement(fishId) {
     const length = prompt('Enter length in cm:', fish.length);
     if (!length || isNaN(length)) return;
     
-    const date = prompt('Enter date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const date = prompt('Enter date (YYYY-MM-DD):', getLocalDateString());
     if (!date) return;
     
     const notes = prompt('Notes (optional):', '');
@@ -750,7 +762,7 @@ function logFeeding(fishId) {
     const food = prompt('What did you feed?', 'Pellets');
     if (!food) return;
     
-    const date = prompt('Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const date = prompt('Date (YYYY-MM-DD):', getLocalDateString());
     if (!date) return;
     
     const notes = prompt('Notes (optional):', '');
@@ -772,7 +784,7 @@ function logHealth(fishId) {
     const status = prompt('Health status (Healthy/Sick/Injured/Recovering):', 'Healthy');
     if (!status) return;
     
-    const date = prompt('Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const date = prompt('Date (YYYY-MM-DD):', getLocalDateString());
     if (!date) return;
     
     const notes = prompt('Notes (optional):', '');
@@ -807,7 +819,7 @@ function addGalleryImage(fishId) {
                 const compressed = await compressImage(file, 600);
                 fishGalleries[fishId].push({
                     url: compressed,
-                    date: new Date().toISOString().split('T')[0],
+                    date: getLocalDateString(),
                     caption: ''
                 });
             } catch (error) {
@@ -882,7 +894,7 @@ function logBreeding(fishId) {
     const partner = prompt('Breeding partner:', '');
     if (!partner) return;
     
-    const date = prompt('Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const date = prompt('Date (YYYY-MM-DD):', getLocalDateString());
     if (!date) return;
     
     const eggs = prompt('Number of eggs (approx):', '');
@@ -912,7 +924,7 @@ function logCompetition(fishId) {
     const event = prompt('Competition/Show name:', '');
     if (!event) return;
     
-    const date = prompt('Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const date = prompt('Date (YYYY-MM-DD):', getLocalDateString());
     if (!date) return;
     
     const category = prompt('Category:', '');
@@ -945,7 +957,7 @@ function logCost(fishId) {
     const amount = prompt('Amount ($):', '');
     if (!amount || isNaN(amount)) return;
     
-    const date = prompt('Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const date = prompt('Date (YYYY-MM-DD):', getLocalDateString());
     if (!date) return;
     
     const notes = prompt('Notes:', '');
@@ -987,7 +999,7 @@ function markAllFed() {
     const food = prompt('What did you feed?', 'Pellets');
     if (!food) return;
     
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     
     fishData.forEach(fish => {
         if (fish.status === 'alive') {
@@ -1020,7 +1032,7 @@ function logWaterQuality() {
     const temp = prompt('Temperature (°C):', '22');
     if (!temp) return;
 
-    const date = prompt('Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const date = prompt('Date (YYYY-MM-DD):', getLocalDateString());
     if (!date) return;
 
     waterLogs.push({
@@ -1040,7 +1052,7 @@ function addReminder() {
     const title = prompt('Reminder title:', 'Water change');
     if (!title) return;
     
-    const date = prompt('Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const date = prompt('Date (YYYY-MM-DD):', getLocalDateString());
     if (!date) return;
     
     const type = prompt('Type (Water Change/Feeding/Medication/Checkup):', 'Water Change');
@@ -1058,7 +1070,7 @@ function addReminder() {
 }
 
 function ensureDailyWaterReminder() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     const alreadyExists = reminders.some(r => r.type === 'Water Quality Check' && r.date === today);
     if (!alreadyExists) {
         reminders.push({
@@ -1072,9 +1084,41 @@ function ensureDailyWaterReminder() {
     }
 }
 
+// Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6
+const WEEKLY_REMINDER_TEMPLATES = [
+    { dayOfWeek: 3, title: 'Water change', type: 'Water Change' },
+    { dayOfWeek: 4, title: 'Bacteria day — turn UV filter OFF', type: 'UV Filter' },
+    { dayOfWeek: 5, title: 'Turn UV filter back ON', type: 'UV Filter' }
+];
+
+function ensureWeeklyReminders() {
+    const now = new Date();
+    const todayStr = getLocalDateString(now);
+    const todayDow = now.getDay();
+    let added = false;
+
+    WEEKLY_REMINDER_TEMPLATES.forEach(tpl => {
+        if (tpl.dayOfWeek !== todayDow) return;
+        const exists = reminders.some(r => r.type === tpl.type && r.title === tpl.title && r.date === todayStr);
+        if (!exists) {
+            reminders.push({
+                id: Date.now() + Math.floor(Math.random() * 1000),
+                title: tpl.title,
+                date: todayStr,
+                type: tpl.type,
+                completed: false
+            });
+            added = true;
+        }
+    });
+
+    if (added) saveReminders();
+}
+
 function checkReminders() {
     ensureDailyWaterReminder();
-    const today = new Date().toISOString().split('T')[0];
+    ensureWeeklyReminders();
+    const today = getLocalDateString();
     const dueReminders = reminders.filter(r => !r.completed && r.date <= today);
     
     if (dueReminders.length > 0) {
@@ -1149,7 +1193,7 @@ function exportData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `jai_koi_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `jai_koi_backup_${getLocalDateString()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1434,7 +1478,7 @@ function openScheduleModal() {
     const existingModal = document.getElementById('scheduleModal');
     if (existingModal) existingModal.remove();
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     const events = buildScheduleEvents();
 
     const upcoming = events
