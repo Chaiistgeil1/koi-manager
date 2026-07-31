@@ -1019,9 +1019,10 @@ function logWaterQuality() {
     
     const temp = prompt('Temperature (°C):', '22');
     if (!temp) return;
-    
-    const date = new Date().toISOString().split('T')[0];
-    
+
+    const date = prompt('Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    if (!date) return;
+
     waterLogs.push({
         ph: parseFloat(ph),
         ammonia: parseFloat(ammonia),
@@ -1056,7 +1057,23 @@ function addReminder() {
     showNotification('📅 Reminder added');
 }
 
+function ensureDailyWaterReminder() {
+    const today = new Date().toISOString().split('T')[0];
+    const alreadyExists = reminders.some(r => r.type === 'Water Quality Check' && r.date === today);
+    if (!alreadyExists) {
+        reminders.push({
+            id: Date.now(),
+            title: 'Daily water quality check',
+            date: today,
+            type: 'Water Quality Check',
+            completed: false
+        });
+        saveReminders();
+    }
+}
+
 function checkReminders() {
+    ensureDailyWaterReminder();
     const today = new Date().toISOString().split('T')[0];
     const dueReminders = reminders.filter(r => !r.completed && r.date <= today);
     
