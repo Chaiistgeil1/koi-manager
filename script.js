@@ -18,6 +18,7 @@ let breedingRecords = [];
 let competitionRecords = [];
 let costRecords = [];
 let reminders = [];
+let feedingSchedule = [];
 
 // ===== DOM ELEMENTS =====
 const fishContainer = document.getElementById('fishContainer');
@@ -89,13 +90,23 @@ function fishSnapshotToState(fishDocs) {
     });
 }
 
+const DEFAULT_POND_SECTIONS = [
+    { id: 1, name: 'Main Pond', capacity: 50, notes: '' },
+    { id: 2, name: 'Quarantine Tank', capacity: 10, notes: '' }
+];
+
+const DEFAULT_FEEDING_SCHEDULE = [
+    { id: 1, time: '07:00', label: 'Morning Feed', note: 'Probiotic' },
+    { id: 2, time: '11:00', label: 'Normal Feed', note: '' },
+    { id: 3, time: '15:00', label: 'Normal Feed', note: '' },
+    { id: 4, time: '19:00', label: 'Normal Feed', note: '' }
+];
+
 function metaSnapshotToState(metaData) {
-    pondSections = (metaData && metaData.pondSections) || [
-        { id: 1, name: 'Main Pond', capacity: 50, notes: '' },
-        { id: 2, name: 'Quarantine Tank', capacity: 10, notes: '' }
-    ];
+    pondSections = (metaData && metaData.pondSections) || DEFAULT_POND_SECTIONS;
     waterLogs = (metaData && metaData.waterLogs) || [];
     reminders = (metaData && metaData.reminders) || [];
+    feedingSchedule = (metaData && metaData.feedingSchedule) || DEFAULT_FEEDING_SCHEDULE;
 }
 
 async function syncAllToFirestore() {
@@ -123,7 +134,7 @@ async function syncAllToFirestore() {
                 costs: costRecords.filter(r => r.fishId === fish.id)
             });
         });
-        batch.set(db.collection('meta').doc('shared'), { pondSections, waterLogs, reminders });
+        batch.set(db.collection('meta').doc('shared'), { pondSections, waterLogs, reminders, feedingSchedule });
         await batch.commit();
     } catch (e) {
         console.error('Firestore sync error:', e);
@@ -144,6 +155,7 @@ function persistLocalFallback() {
     localStorage.setItem('jaiKoiCompetitionRecords', JSON.stringify(competitionRecords));
     localStorage.setItem('jaiKoiCostRecords', JSON.stringify(costRecords));
     localStorage.setItem('jaiKoiReminders', JSON.stringify(reminders));
+    localStorage.setItem('jaiKoiFeedingSchedule', JSON.stringify(feedingSchedule));
 }
 
 function loadLocalFallback() {
@@ -155,14 +167,12 @@ function loadLocalFallback() {
     waterLogs = JSON.parse(localStorage.getItem('jaiKoiWaterLogs') || '[]');
     fishGalleries = JSON.parse(localStorage.getItem('jaiKoiGalleries') || '{}');
     familyTrees = JSON.parse(localStorage.getItem('jaiKoiFamilyTrees') || '{}');
-    pondSections = JSON.parse(localStorage.getItem('jaiKoiPondSections') || 'null') || [
-        { id: 1, name: 'Main Pond', capacity: 50, notes: '' },
-        { id: 2, name: 'Quarantine Tank', capacity: 10, notes: '' }
-    ];
+    pondSections = JSON.parse(localStorage.getItem('jaiKoiPondSections') || 'null') || DEFAULT_POND_SECTIONS;
     breedingRecords = JSON.parse(localStorage.getItem('jaiKoiBreedingRecords') || '[]');
     competitionRecords = JSON.parse(localStorage.getItem('jaiKoiCompetitionRecords') || '[]');
     costRecords = JSON.parse(localStorage.getItem('jaiKoiCostRecords') || '[]');
     reminders = JSON.parse(localStorage.getItem('jaiKoiReminders') || '[]');
+    feedingSchedule = JSON.parse(localStorage.getItem('jaiKoiFeedingSchedule') || 'null') || DEFAULT_FEEDING_SCHEDULE;
     if (!savedFish) persistLocalFallback();
 }
 
@@ -214,6 +224,7 @@ function saveBreedingRecords() { scheduleSync(); }
 function saveCompetitionRecords() { scheduleSync(); }
 function saveCostRecords() { scheduleSync(); }
 function saveReminders() { scheduleSync(); }
+function saveFeedingSchedule() { scheduleSync(); }
 
 // ===== DATE HELPERS =====
 // toISOString() converts to UTC, which silently shifts "today" to the wrong
@@ -1115,9 +1126,33 @@ function ensureWeeklyReminders() {
     if (added) saveReminders();
 }
 
+function ensureFeedingReminders() {
+    const today = getLocalDateString();
+    let added = false;
+
+    feedingSchedule.forEach(slot => {
+        const title = `${slot.label} (${slot.time})${slot.note ? ' — ' + slot.note : ''}`;
+        const exists = reminders.some(r => r.type === 'Feeding Schedule' && r.scheduleId === slot.id && r.date === today);
+        if (!exists) {
+            reminders.push({
+                id: Date.now() + Math.floor(Math.random() * 1000),
+                title: title,
+                date: today,
+                type: 'Feeding Schedule',
+                scheduleId: slot.id,
+                completed: false
+            });
+            added = true;
+        }
+    });
+
+    if (added) saveReminders();
+}
+
 function checkReminders() {
     ensureDailyWaterReminder();
     ensureWeeklyReminders();
+    ensureFeedingReminders();
     const today = getLocalDateString();
     const dueReminders = reminders.filter(r => !r.completed && r.date <= today);
     
@@ -1531,6 +1566,90 @@ function completeReminderFromSchedule(id) {
     }
 }
 
+// ===== FEEDING SCHEDULE (editable) =====
+function openFeedingScheduleModal() {
+    const existingModal = document.getElementById('feedingScheduleModal');
+    if (existingModal) existingModal.remove();
+
+    const sortedSlots = [...feedingSchedule].sort((a, b) => a.time.localeCompare(b.time));
+
+    const modal = document.createElement('div');
+    modal.id = 'feedingScheduleModal';
+    modal.className = 'schedule-modal';
+    modal.innerHTML = `
+        <div class="schedule-overlay" onclick="closeFeedingScheduleModal()"></div>
+        <div class="schedule-content">
+            <button class="schedule-close" onclick="closeFeedingScheduleModal()">&times;</button>
+            <h2>🍽️ Feeding Schedule</h2>
+            <div class="schedule-section">
+                ${sortedSlots.length ? sortedSlots.map(slot => `
+                    <div class="schedule-item" style="border-left-color:#f39c12">
+                        <div class="schedule-item-icon">🍽️</div>
+                        <div class="schedule-item-body">
+                            <div class="schedule-item-title">${slot.time} — ${slot.label}</div>
+                            ${slot.note ? `<div class="schedule-item-subtitle">${slot.note}</div>` : ''}
+                        </div>
+                        <button class="schedule-icon-btn schedule-edit-btn" onclick="editFeedingSlot(${slot.id})" title="Edit">✏️</button>
+                        <button class="schedule-icon-btn schedule-delete-btn" onclick="deleteFeedingSlot(${slot.id})" title="Delete">🗑️</button>
+                    </div>
+                `).join('') : '<p class="schedule-empty">No feeding times set.</p>'}
+            </div>
+            <button class="schedule-add-btn" id="addFeedingSlotBtn">+ Add Feeding Time</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('addFeedingSlotBtn').addEventListener('click', addFeedingSlot);
+}
+
+function closeFeedingScheduleModal() {
+    const modal = document.getElementById('feedingScheduleModal');
+    if (modal) modal.remove();
+}
+
+function addFeedingSlot() {
+    const time = prompt('Time (24-hour, e.g. 07:00):', '07:00');
+    if (!time) return;
+    const label = prompt('Label:', 'Normal Feed');
+    if (!label) return;
+    const note = prompt('Note (e.g. "Probiotic") — leave blank if none:', '');
+
+    feedingSchedule.push({
+        id: Date.now(),
+        time: time,
+        label: label,
+        note: note || ''
+    });
+    saveFeedingSchedule();
+    openFeedingScheduleModal();
+    showNotification('🍽️ Feeding time added');
+}
+
+function editFeedingSlot(id) {
+    const slot = feedingSchedule.find(s => s.id === id);
+    if (!slot) return;
+
+    const time = prompt('Time (24-hour, e.g. 07:00):', slot.time);
+    if (!time) return;
+    const label = prompt('Label:', slot.label);
+    if (!label) return;
+    const note = prompt('Note — leave blank if none:', slot.note || '');
+
+    slot.time = time;
+    slot.label = label;
+    slot.note = note || '';
+    saveFeedingSchedule();
+    openFeedingScheduleModal();
+    showNotification('✏️ Feeding time updated');
+}
+
+function deleteFeedingSlot(id) {
+    if (!confirm('Remove this feeding time?')) return;
+    feedingSchedule = feedingSchedule.filter(s => s.id !== id);
+    saveFeedingSchedule();
+    openFeedingScheduleModal();
+    showNotification('🗑️ Feeding time removed');
+}
+
 const scheduleStyle = document.createElement('style');
 scheduleStyle.textContent = `
     .schedule-modal {
@@ -1652,6 +1771,42 @@ scheduleStyle.textContent = `
         color: #8899aa;
         font-size: 0.9em;
     }
+    .schedule-icon-btn {
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 0.85em;
+        flex-shrink: 0;
+        background: rgba(255, 255, 255, 0.06);
+        color: #e0e0e0;
+    }
+    .schedule-edit-btn:hover {
+        background: rgba(100, 181, 246, 0.2);
+        border-color: rgba(100, 181, 246, 0.4);
+    }
+    .schedule-delete-btn:hover {
+        background: rgba(231, 76, 60, 0.2);
+        border-color: rgba(231, 76, 60, 0.4);
+    }
+    .schedule-add-btn {
+        width: 100%;
+        padding: 12px;
+        margin-top: 6px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.05);
+        color: #e0e0e0;
+        cursor: pointer;
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.9em;
+        font-weight: 500;
+        transition: all 0.3s;
+    }
+    .schedule-add-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
 `;
 document.head.appendChild(scheduleStyle);
 
@@ -1679,8 +1834,33 @@ scheduleBtn.addEventListener('mouseleave', () => {
 
 document.querySelector('.top-buttons').appendChild(scheduleBtn);
 
+const feedingScheduleBtn = document.createElement('button');
+feedingScheduleBtn.textContent = '🍽️ Feeding Schedule';
+feedingScheduleBtn.onclick = openFeedingScheduleModal;
+feedingScheduleBtn.style.cssText = `
+    padding: 10px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+    color: #e0e0e0;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: all 0.3s;
+`;
+feedingScheduleBtn.addEventListener('mouseenter', () => {
+    feedingScheduleBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+});
+feedingScheduleBtn.addEventListener('mouseleave', () => {
+    feedingScheduleBtn.style.background = 'rgba(255, 255, 255, 0.05)';
+});
+
+document.querySelector('.top-buttons').appendChild(feedingScheduleBtn);
+
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && document.getElementById('scheduleModal')) closeScheduleModal();
+    if (e.key === 'Escape' && document.getElementById('feedingScheduleModal')) closeFeedingScheduleModal();
 });
 
 // ===== INITIALIZE EVERYTHING =====
