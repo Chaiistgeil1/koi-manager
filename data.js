@@ -1,6 +1,6 @@
 // data.js - Your complete koi collection
 const initialFishData = [
-    { id: 1, name: "Ochiba Shigure", variety: "Ochiba Shigure", length: 43, date: "2025-11-22", status: "alive", notes: "", image: "" },
+    { id: 1, name: "Ochiba Shigure", variety: "Ochiba Shigure", length: 43, date: "", status: "alive", notes: "", image: "" },
     { id: 2, name: "Black Nosed Sanke", variety: "Black nosed sanke", length: 38, date: "", status: "alive", notes: "", image: "" },
     { id: 3, name: "Goshiki", variety: "Goshiki", length: 33, date: "", status: "alive", notes: "", image: "" },
     { id: 4, name: "Gin Rin Sanke", variety: "Gin Rin Sanke", length: 45, date: "", status: "alive", notes: "", image: "" },
