@@ -31,5 +31,9 @@ const initialFishData = [
     { id: 29, name: "Princess 2", variety: "-", length: 28, date: "", status: "alive", notes: "", image: "" },
     { id: 30, name: "Princess 1", variety: "-", length: 27, date: "", status: "alive", notes: "", image: "" },
     { id: 31, name: "Sanke", variety: "Sanke", length: 47, date: "", status: "alive", notes: "", image: "" },
-    { id: 32, name: "Dot", variety: "Kohaku", length: 25, date: "", status: "alive", notes: "", image: "" }
+    { id: 32, name: "Dot", variety: "Kohaku", length: 25, date: "", status: "alive", notes: "", image: "" },
+    { id: 33, name: "Albino Iridescent Shark 1", variety: "Albino Iridescent Shark", length: 30, date: "", status: "alive", notes: "", image: "" },
+    { id: 34, name: "Albino Iridescent Shark 2", variety: "Albino Iridescent Shark", length: 20, date: "", status: "alive", notes: "Slight stomach problem", image: "" },
+    { id: 35, name: "Iridescent Shark 1", variety: "Iridescent Shark", length: 12, date: "", status: "alive", notes: "", image: "" },
+    { id: 36, name: "Iridescent Shark 2", variety: "Iridescent Shark", length: 14, date: "", status: "alive", notes: "", image: "" }
 ];
