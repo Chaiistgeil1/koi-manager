@@ -186,8 +186,8 @@ main {
 
 #fishContainer {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
 }
 
 .fish-card {
@@ -199,8 +199,6 @@ main {
     transition: all 0.3s;
     backdrop-filter: blur(10px);
     position: relative;
-    display: flex;
-    align-items: stretch;
 }
 
 .fish-card:hover {
@@ -219,10 +217,9 @@ main {
 }
 
 .card-image {
-    width: 45%;
-    max-width: 260px;
-    height: 220px;
-    flex-shrink: 0;
+    width: 100%;
+    height: 260px;
+    padding: 10px;
     background: rgba(0, 0, 0, 0.3);
     display: flex;
     align-items: center;
@@ -235,6 +232,8 @@ main {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 10px;
+    border: 3px solid rgba(242, 177, 85, 0.25);
 }
 
 .card-image .no-image {
@@ -243,19 +242,13 @@ main {
     color: #8fa39a;
 }
 
-.card-body {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
-
 .card-badge {
-    flex-shrink: 0;
-    padding: 4px 10px;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    padding: 5px 12px;
     border-radius: 20px;
-    font-size: 0.7em;
+    font-size: 0.75em;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -274,29 +267,21 @@ main {
 }
 
 .card-info {
-    padding: 14px 16px 6px;
-}
-
-.card-info-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 4px;
+    padding: 20px;
 }
 
 .card-info h3 {
-    font-size: 1.1em;
+    font-size: 1.3em;
     font-weight: 600;
     color: #e0e0e0;
-    line-height: 1.25;
+    margin-bottom: 8px;
 }
 
 .card-info .variety {
     color: #f2b155;
-    font-size: 0.85em;
+    font-size: 0.9em;
     font-weight: 500;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
 }
 
 .card-info .details {

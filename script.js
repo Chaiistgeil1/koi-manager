@@ -512,30 +512,26 @@ function renderFish() {
                 ${fish.image
                     ? `<img src="${fish.image}" alt="${fish.name}" loading="lazy">`
                     : '<div class="no-image">🐟</div>'}
+                <span class="card-badge ${fish.status === 'alive' ? 'badge-alive' : 'badge-deceased'}">
+                    ${fish.status === 'alive' ? 'Alive' : 'Deceased'}
+                </span>
             </div>
-            <div class="card-body">
-                <div class="card-info">
-                    <div class="card-info-top">
-                        <h3>${fish.name}</h3>
-                        <span class="card-badge ${fish.status === 'alive' ? 'badge-alive' : 'badge-deceased'}">
-                            ${fish.status === 'alive' ? 'Alive' : 'Deceased'}
-                        </span>
-                    </div>
-                    <div class="variety">${fish.variety}</div>
-                    ${pondSection ? `<div style="color:#8fa39a;font-size:0.8em;margin-bottom:8px;">📍 ${pondSection.name}</div>` : ''}
-                    <div class="details">
-                        <span>📏 ${fish.length} cm</span>
-                        <span>📅 ${fish.date || 'N/A'}</span>
-                    </div>
+            <div class="card-info">
+                <h3>${fish.name}</h3>
+                <div class="variety">${fish.variety}</div>
+                ${pondSection ? `<div style="color:#8fa39a;font-size:0.8em;margin-bottom:8px;">📍 ${pondSection.name}</div>` : ''}
+                <div class="details">
+                    <span>📏 ${fish.length} cm</span>
+                    <span>📅 ${fish.date || 'N/A'}</span>
                 </div>
-                <div style="display:flex;gap:8px;padding:0 16px 12px;">
-                    <button class="card-btn edit-btn" onclick="event.stopPropagation(); openModal(fishData.find(f=>f.id===${fish.id}))">
-                        ✏️ Edit
-                    </button>
-                    <button class="card-btn delete-btn" onclick="event.stopPropagation(); deleteFish(${fish.id})">
-                        🗑️
-                    </button>
-                </div>
+            </div>
+            <div style="display:flex;gap:8px;padding:0 20px 20px;">
+                <button class="card-btn edit-btn" onclick="event.stopPropagation(); openModal(fishData.find(f=>f.id===${fish.id}))">
+                    ✏️ Edit
+                </button>
+                <button class="card-btn delete-btn" onclick="event.stopPropagation(); deleteFish(${fish.id})">
+                    🗑️
+                </button>
             </div>
         `;
         
