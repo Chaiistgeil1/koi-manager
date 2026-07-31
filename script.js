@@ -1195,16 +1195,6 @@ function checkReminders() {
     ensureDailyWaterReminder();
     ensureWeeklyReminders();
     ensureFeedingReminders();
-    const today = getLocalDateString();
-    const dueReminders = reminders.filter(r => !r.completed && r.date <= today);
-    
-    if (dueReminders.length > 0) {
-        const message = dueReminders.map(r => `• ${r.title} (${r.date})`).join('\n');
-        if (confirm(`📅 Reminders Due Today:\n\n${message}\n\nMark all as completed?`)) {
-            dueReminders.forEach(r => r.completed = true);
-            saveReminders();
-        }
-    }
 }
 
 // Typical safe ranges for a koi pond
