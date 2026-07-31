@@ -4,7 +4,6 @@
 
 // ===== CORE DATA =====
 let fishData = [];
-let nextId = 1;
 let editingFishId = null;
 
 // ===== ADDITIONAL DATA STORES =====
@@ -41,143 +40,180 @@ const fishImage = document.getElementById('fishImage');
 const saveFishBtn = document.getElementById('saveFish');
 const cancelFishBtn = document.getElementById('cancelFish');
 
-// ===== LOCAL STORAGE FUNCTIONS =====
-function loadData() {
-    const saved = localStorage.getItem('jaiKoiCollection');
-    if (saved) {
-        try {
-            fishData = JSON.parse(saved);
-            if (fishData.length > 0) {
-                nextId = Math.max(...fishData.map(f => f.id)) + 1;
-            }
-        } catch (e) {
-            console.error('Error loading fish data:', e);
-            fishData = JSON.parse(JSON.stringify(initialFishData));
-            nextId = fishData.length + 1;
-        }
-    } else {
-        fishData = JSON.parse(JSON.stringify(initialFishData));
-        nextId = fishData.length + 1;
-        saveData();
-    }
+// ===== STORAGE: FIRESTORE (SHARED) WITH LOCAL FALLBACK =====
+// When Firebase is configured, all data lives in Firestore so every device
+// sharing the link sees the same koi collection in real time. If Firebase
+// isn't configured yet, everything falls back to this browser's localStorage
+// exactly like before, so the app still works during setup.
+let db = null;
+let syncTimeout = null;
+let firstFishSnapshotReceived = false;
+
+function generateFishId() {
+    return Date.now() + Math.floor(Math.random() * 1000);
 }
 
-function saveData() {
+function fishSnapshotToState(fishDocs) {
+    fishData = [];
+    growthData = {};
+    feedingLogs = [];
+    healthRecords = [];
+    fishGalleries = {};
+    familyTrees = {};
+    breedingRecords = [];
+    competitionRecords = [];
+    costRecords = [];
+
+    fishDocs.forEach(docSnap => {
+        const data = docSnap.data();
+        const id = Number(docSnap.id);
+        fishData.push({
+            id,
+            name: data.name,
+            variety: data.variety,
+            length: data.length,
+            date: data.date,
+            status: data.status,
+            notes: data.notes,
+            image: data.image || '',
+            pondId: data.pondId || null
+        });
+        if (data.growth && data.growth.length) growthData[id] = data.growth;
+        (data.feeding || []).forEach(l => feedingLogs.push({ ...l, fishId: id }));
+        (data.health || []).forEach(r => healthRecords.push({ ...r, fishId: id }));
+        if (data.gallery && data.gallery.length) fishGalleries[id] = data.gallery;
+        if (data.family) familyTrees[id] = data.family;
+        (data.breeding || []).forEach(r => breedingRecords.push({ ...r, fishId: id }));
+        (data.competitions || []).forEach(r => competitionRecords.push({ ...r, fishId: id }));
+        (data.costs || []).forEach(r => costRecords.push({ ...r, fishId: id }));
+    });
+}
+
+function metaSnapshotToState(metaData) {
+    pondSections = (metaData && metaData.pondSections) || [
+        { id: 1, name: 'Main Pond', capacity: 50, notes: '' },
+        { id: 2, name: 'Quarantine Tank', capacity: 10, notes: '' }
+    ];
+    waterLogs = (metaData && metaData.waterLogs) || [];
+    reminders = (metaData && metaData.reminders) || [];
+}
+
+async function syncAllToFirestore() {
+    if (!db) return;
     try {
-        localStorage.setItem('jaiKoiCollection', JSON.stringify(fishData));
-        showNotification('💾 Saved!');
+        const batch = db.batch();
+        fishData.forEach(fish => {
+            const ref = db.collection('fish').doc(String(fish.id));
+            batch.set(ref, {
+                name: fish.name,
+                variety: fish.variety,
+                length: fish.length,
+                date: fish.date,
+                status: fish.status,
+                notes: fish.notes,
+                image: fish.image || '',
+                pondId: fish.pondId || null,
+                growth: growthData[fish.id] || [],
+                feeding: feedingLogs.filter(l => l.fishId === fish.id),
+                health: healthRecords.filter(r => r.fishId === fish.id),
+                gallery: fishGalleries[fish.id] || [],
+                family: familyTrees[fish.id] || null,
+                breeding: breedingRecords.filter(r => r.fishId === fish.id),
+                competitions: competitionRecords.filter(r => r.fishId === fish.id),
+                costs: costRecords.filter(r => r.fishId === fish.id)
+            });
+        });
+        batch.set(db.collection('meta').doc('shared'), { pondSections, waterLogs, reminders });
+        await batch.commit();
     } catch (e) {
-        console.error('Error saving data:', e);
-        alert('Storage full! Please export your data and clear some images.');
+        console.error('Firestore sync error:', e);
+        showNotification('⚠️ Sync failed — check internet connection');
     }
 }
 
-function loadGrowthData() {
-    const saved = localStorage.getItem('jaiKoiGrowthData');
-    if (saved) growthData = JSON.parse(saved);
-}
-
-function saveGrowthData() {
+function persistLocalFallback() {
+    localStorage.setItem('jaiKoiCollection', JSON.stringify(fishData));
     localStorage.setItem('jaiKoiGrowthData', JSON.stringify(growthData));
-}
-
-function loadFeedingLogs() {
-    const saved = localStorage.getItem('jaiKoiFeedingLogs');
-    if (saved) feedingLogs = JSON.parse(saved);
-}
-
-function saveFeedingLogs() {
     localStorage.setItem('jaiKoiFeedingLogs', JSON.stringify(feedingLogs));
-}
-
-function loadHealthRecords() {
-    const saved = localStorage.getItem('jaiKoiHealthRecords');
-    if (saved) healthRecords = JSON.parse(saved);
-}
-
-function saveHealthRecords() {
     localStorage.setItem('jaiKoiHealthRecords', JSON.stringify(healthRecords));
-}
-
-function loadWaterLogs() {
-    const saved = localStorage.getItem('jaiKoiWaterLogs');
-    if (saved) waterLogs = JSON.parse(saved);
-}
-
-function saveWaterLogs() {
     localStorage.setItem('jaiKoiWaterLogs', JSON.stringify(waterLogs));
-}
-
-function loadGalleries() {
-    const saved = localStorage.getItem('jaiKoiGalleries');
-    if (saved) fishGalleries = JSON.parse(saved);
-}
-
-function saveGalleries() {
     localStorage.setItem('jaiKoiGalleries', JSON.stringify(fishGalleries));
-}
-
-function loadFamilyTrees() {
-    const saved = localStorage.getItem('jaiKoiFamilyTrees');
-    if (saved) familyTrees = JSON.parse(saved);
-}
-
-function saveFamilyTrees() {
     localStorage.setItem('jaiKoiFamilyTrees', JSON.stringify(familyTrees));
-}
-
-function loadPondSections() {
-    const saved = localStorage.getItem('jaiKoiPondSections');
-    if (saved) {
-        pondSections = JSON.parse(saved);
-    } else {
-        pondSections = [
-            { id: 1, name: 'Main Pond', capacity: 50, notes: '' },
-            { id: 2, name: 'Quarantine Tank', capacity: 10, notes: '' }
-        ];
-        savePondSections();
-    }
-}
-
-function savePondSections() {
     localStorage.setItem('jaiKoiPondSections', JSON.stringify(pondSections));
-}
-
-function loadBreedingRecords() {
-    const saved = localStorage.getItem('jaiKoiBreedingRecords');
-    if (saved) breedingRecords = JSON.parse(saved);
-}
-
-function saveBreedingRecords() {
     localStorage.setItem('jaiKoiBreedingRecords', JSON.stringify(breedingRecords));
-}
-
-function loadCompetitionRecords() {
-    const saved = localStorage.getItem('jaiKoiCompetitionRecords');
-    if (saved) competitionRecords = JSON.parse(saved);
-}
-
-function saveCompetitionRecords() {
     localStorage.setItem('jaiKoiCompetitionRecords', JSON.stringify(competitionRecords));
-}
-
-function loadCostRecords() {
-    const saved = localStorage.getItem('jaiKoiCostRecords');
-    if (saved) costRecords = JSON.parse(saved);
-}
-
-function saveCostRecords() {
     localStorage.setItem('jaiKoiCostRecords', JSON.stringify(costRecords));
-}
-
-function loadReminders() {
-    const saved = localStorage.getItem('jaiKoiReminders');
-    if (saved) reminders = JSON.parse(saved);
-}
-
-function saveReminders() {
     localStorage.setItem('jaiKoiReminders', JSON.stringify(reminders));
 }
+
+function loadLocalFallback() {
+    const savedFish = localStorage.getItem('jaiKoiCollection');
+    fishData = savedFish ? JSON.parse(savedFish) : JSON.parse(JSON.stringify(initialFishData));
+    growthData = JSON.parse(localStorage.getItem('jaiKoiGrowthData') || '{}');
+    feedingLogs = JSON.parse(localStorage.getItem('jaiKoiFeedingLogs') || '[]');
+    healthRecords = JSON.parse(localStorage.getItem('jaiKoiHealthRecords') || '[]');
+    waterLogs = JSON.parse(localStorage.getItem('jaiKoiWaterLogs') || '[]');
+    fishGalleries = JSON.parse(localStorage.getItem('jaiKoiGalleries') || '{}');
+    familyTrees = JSON.parse(localStorage.getItem('jaiKoiFamilyTrees') || '{}');
+    pondSections = JSON.parse(localStorage.getItem('jaiKoiPondSections') || 'null') || [
+        { id: 1, name: 'Main Pond', capacity: 50, notes: '' },
+        { id: 2, name: 'Quarantine Tank', capacity: 10, notes: '' }
+    ];
+    breedingRecords = JSON.parse(localStorage.getItem('jaiKoiBreedingRecords') || '[]');
+    competitionRecords = JSON.parse(localStorage.getItem('jaiKoiCompetitionRecords') || '[]');
+    costRecords = JSON.parse(localStorage.getItem('jaiKoiCostRecords') || '[]');
+    reminders = JSON.parse(localStorage.getItem('jaiKoiReminders') || '[]');
+    if (!savedFish) persistLocalFallback();
+}
+
+// scheduleSync() is called from all the save*() functions below (unchanged
+// call sites throughout the rest of the file). It debounces rapid bursts of
+// changes (e.g. deleteFish touches 8+ stores at once) into a single write.
+function scheduleSync() {
+    if (db) {
+        if (syncTimeout) clearTimeout(syncTimeout);
+        syncTimeout = setTimeout(syncAllToFirestore, 150);
+    } else {
+        persistLocalFallback();
+    }
+}
+
+function initFirestoreSync() {
+    db.collection('fish').onSnapshot(snapshot => {
+        fishSnapshotToState(snapshot.docs);
+        if (!firstFishSnapshotReceived) {
+            firstFishSnapshotReceived = true;
+            if (snapshot.empty) {
+                fishData = JSON.parse(JSON.stringify(initialFishData));
+                scheduleSync();
+            }
+        }
+        renderFish();
+        updateStats();
+    }, err => {
+        console.error('Firestore fish listener error:', err);
+        showNotification('⚠️ Connection issue — check internet');
+    });
+
+    db.collection('meta').doc('shared').onSnapshot(docSnap => {
+        metaSnapshotToState(docSnap.data());
+        if (!docSnap.exists) scheduleSync();
+        renderFish();
+    }, err => console.error('Firestore meta listener error:', err));
+}
+
+function saveData() { scheduleSync(); }
+function saveGrowthData() { scheduleSync(); }
+function saveFeedingLogs() { scheduleSync(); }
+function saveHealthRecords() { scheduleSync(); }
+function saveWaterLogs() { scheduleSync(); }
+function saveGalleries() { scheduleSync(); }
+function saveFamilyTrees() { scheduleSync(); }
+function savePondSections() { scheduleSync(); }
+function saveBreedingRecords() { scheduleSync(); }
+function saveCompetitionRecords() { scheduleSync(); }
+function saveCostRecords() { scheduleSync(); }
+function saveReminders() { scheduleSync(); }
 
 // ===== NOTIFICATION SYSTEM =====
 function showNotification(message) {
@@ -305,7 +341,7 @@ async function saveFish() {
     }
 
     const fishObj = {
-        id: editingFishId || nextId++,
+        id: editingFishId || generateFishId(),
         name: name,
         variety: fishVariety.value.trim() || '-',
         length: parseInt(fishLength.value) || 0,
@@ -360,7 +396,11 @@ function deleteFish(id) {
         breedingRecords = breedingRecords.filter(record => record.fishId !== id);
         competitionRecords = competitionRecords.filter(record => record.fishId !== id);
         costRecords = costRecords.filter(record => record.fishId !== id);
-        
+
+        if (db) {
+            db.collection('fish').doc(String(id)).delete().catch(e => console.error('Firestore delete error:', e));
+        }
+
         saveData();
         saveGrowthData();
         saveGalleries();
@@ -1104,17 +1144,26 @@ function importData(event) {
     const file = event.target.files[0];
     if (!file) return;
     
-    if (!confirm('Import will replace all current data. Continue?')) {
+    if (!confirm('Import will replace all current data — for everyone sharing this link, not just you. Continue?')) {
         event.target.value = '';
         return;
     }
     
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
         try {
             const imported = JSON.parse(e.target.result);
-            
+
             if (imported.fishData) {
+                // Remove fish that won't exist in the imported set, so old
+                // entries don't linger in the shared store after import.
+                if (db) {
+                    const existing = await db.collection('fish').get();
+                    const clearBatch = db.batch();
+                    existing.docs.forEach(d => clearBatch.delete(d.ref));
+                    await clearBatch.commit();
+                }
+
                 fishData = imported.fishData;
                 growthData = imported.growthData || {};
                 feedingLogs = imported.feedingLogs || [];
@@ -1127,11 +1176,7 @@ function importData(event) {
                 competitionRecords = imported.competitionRecords || [];
                 costRecords = imported.costRecords || [];
                 reminders = imported.reminders || [];
-                
-                if (fishData.length > 0) {
-                    nextId = Math.max(...fishData.map(f => f.id)) + 1;
-                }
-                
+
                 // Save everything
                 saveData();
                 saveGrowthData();
@@ -1286,31 +1331,30 @@ document.querySelector('.top-buttons').appendChild(statsBtn);
 
 // ===== INITIALIZE EVERYTHING =====
 function init() {
-    loadData();
-    loadGrowthData();
-    loadFeedingLogs();
-    loadHealthRecords();
-    loadWaterLogs();
-    loadGalleries();
-    loadFamilyTrees();
-    loadPondSections();
-    loadBreedingRecords();
-    loadCompetitionRecords();
-    loadCostRecords();
-    loadReminders();
-    
-    renderFish();
-    updateStats();
-    
+    const configured = typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey && firebaseConfig.apiKey !== 'YOUR_API_KEY';
+
+    if (configured) {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+        db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+            console.warn('Firestore offline persistence unavailable:', err.code);
+        });
+        initFirestoreSync();
+        console.log('☁️ Synced with Firebase — shared across all devices with the link');
+    } else {
+        loadLocalFallback();
+        renderFish();
+        updateStats();
+        console.log('💾 Firebase not configured — saving to this browser only. See firebase-config.js');
+    }
+
     // Check reminders on startup
     setTimeout(checkReminders, 1000);
-    
+
     // Check reminders every hour
     setInterval(checkReminders, 3600000);
-    
+
     console.log('🐟 Jai\'s Koi Manager Ready!');
-    console.log(`📊 ${fishData.length} fish loaded`);
-    console.log(`💾 All data saved in browser localStorage`);
     console.log(`⌨️ Shortcuts: Ctrl+F = Search, Ctrl+N = New Fish, Esc = Close`);
 }
 
