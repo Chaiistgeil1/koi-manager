@@ -492,9 +492,9 @@ function renderFish() {
     
     if (filtered.length === 0) {
         fishContainer.innerHTML = `
-            <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: #8899aa;">
+            <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: #8fa39a;">
                 <div style="font-size: 4em; margin-bottom: 20px;">🐟</div>
-                <h3 style="color: #b0c4de; margin-bottom: 10px;">No Fish Found</h3>
+                <h3 style="color: #cbb896; margin-bottom: 10px;">No Fish Found</h3>
                 <p>Try adjusting your search or add a new fish!</p>
             </div>
         `;
@@ -519,7 +519,7 @@ function renderFish() {
             <div class="card-info">
                 <h3>${fish.name}</h3>
                 <div class="variety">${fish.variety}</div>
-                ${pondSection ? `<div style="color:#8899aa;font-size:0.8em;margin-bottom:8px;">📍 ${pondSection.name}</div>` : ''}
+                ${pondSection ? `<div style="color:#8fa39a;font-size:0.8em;margin-bottom:8px;">📍 ${pondSection.name}</div>` : ''}
                 <div class="details">
                     <span>📏 ${fish.length} cm</span>
                     <span>📅 ${fish.date || 'N/A'}</span>
@@ -591,7 +591,7 @@ function openFishProfile(fishId) {
                 <div class="profile-title">
                     <h2>${fish.name}</h2>
                     <p class="profile-variety">${fish.variety}</p>
-                    ${pondSection ? `<p style="color:#8899aa;font-size:0.9em;">📍 ${pondSection.name}</p>` : ''}
+                    ${pondSection ? `<p style="color:#8fa39a;font-size:0.9em;">📍 ${pondSection.name}</p>` : ''}
                     <span class="profile-status ${fish.status}">${fish.status === 'alive' ? '🟢 Alive' : '💀 Deceased'}</span>
                 </div>
             </div>
@@ -710,7 +710,7 @@ function openFishProfile(fishId) {
             
             <div class="profile-section">
                 <h3>📝 Notes</h3>
-                <p style="color:#b0c4de;">${fish.notes || 'No notes added yet'}</p>
+                <p style="color:#cbb896;">${fish.notes || 'No notes added yet'}</p>
             </div>
             
             <div class="profile-actions">
@@ -1027,35 +1027,77 @@ function markAllFed() {
     showNotification('🍽️ All fish fed!');
 }
 
-function logWaterQuality() {
-    const ph = prompt('pH level:', '7.0');
-    if (!ph) return;
-    
-    const ammonia = prompt('Ammonia (ppm):', '0');
-    if (!ammonia) return;
-    
-    const nitrite = prompt('Nitrite (ppm):', '0');
-    if (!nitrite) return;
-    
-    const nitrate = prompt('Nitrate (ppm):', '20');
-    if (!nitrate) return;
-    
-    const temp = prompt('Temperature (°C):', '22');
-    if (!temp) return;
+function openWaterQualityModal() {
+    const existingModal = document.getElementById('waterQualityModal');
+    if (existingModal) existingModal.remove();
 
-    const date = prompt('Date (YYYY-MM-DD):', getLocalDateString());
-    if (!date) return;
+    const modal = document.createElement('div');
+    modal.id = 'waterQualityModal';
+    modal.className = 'schedule-modal';
+    modal.innerHTML = `
+        <div class="schedule-overlay" onclick="closeWaterQualityModal()"></div>
+        <div class="schedule-content">
+            <button class="schedule-close" onclick="closeWaterQualityModal()">&times;</button>
+            <h2>💧 Log Water Quality</h2>
+            <div class="schedule-form">
+                <label>pH Level
+                    <input type="number" step="0.1" id="wqPh" value="7.0">
+                </label>
+                <label>Ammonia (ppm)
+                    <input type="number" step="0.01" min="0" id="wqAmmonia" value="0">
+                </label>
+                <label>Nitrite (ppm)
+                    <input type="number" step="0.01" min="0" id="wqNitrite" value="0">
+                </label>
+                <label>Nitrate (ppm)
+                    <input type="number" step="1" min="0" id="wqNitrate" value="20">
+                </label>
+                <label>Salinity (ppt)
+                    <input type="number" step="0.1" min="0" id="wqSalinity" value="0">
+                </label>
+                <label>Temperature (°C)
+                    <input type="number" step="1" id="wqTemp" value="22">
+                </label>
+                <label>Date
+                    <input type="date" id="wqDate" value="${getLocalDateString()}">
+                </label>
+            </div>
+            <button class="schedule-add-btn" id="wqSaveBtn">💾 Save Reading</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('wqSaveBtn').addEventListener('click', saveWaterQualityFromModal);
+}
 
-    waterLogs.push({
-        ph: parseFloat(ph),
-        ammonia: parseFloat(ammonia),
-        nitrite: parseFloat(nitrite),
-        nitrate: parseFloat(nitrate),
-        temperature: parseInt(temp),
-        date: date
-    });
-    
+function closeWaterQualityModal() {
+    const modal = document.getElementById('waterQualityModal');
+    if (modal) modal.remove();
+}
+
+function saveWaterQualityFromModal() {
+    const ph = parseFloat(document.getElementById('wqPh').value);
+    const ammonia = parseFloat(document.getElementById('wqAmmonia').value);
+    const nitrite = parseFloat(document.getElementById('wqNitrite').value);
+    const nitrate = parseFloat(document.getElementById('wqNitrate').value);
+    const salinity = parseFloat(document.getElementById('wqSalinity').value);
+    const temperature = parseInt(document.getElementById('wqTemp').value);
+    const date = document.getElementById('wqDate').value;
+
+    if ([ph, ammonia, nitrite, nitrate, salinity, temperature].some(isNaN) || !date) {
+        alert('Please fill in every field.');
+        return;
+    }
+
+    waterLogs.push({ ph, ammonia, nitrite, nitrate, salinity, temperature, date });
     saveWaterLogs();
+
+    const todayReminder = reminders.find(r => r.type === 'Water Quality Check' && r.date === getLocalDateString() && !r.completed);
+    if (todayReminder) {
+        todayReminder.completed = true;
+        saveReminders();
+    }
+
+    closeWaterQualityModal();
     showNotification('💧 Water parameters logged');
 }
 
@@ -1249,7 +1291,7 @@ function openStatisticsModal() {
                     ${phSparkline ? `
                         <div class="stats-sublist-title">pH over time (${sortedWaterLogs.length} readings)</div>
                         <svg viewBox="0 0 260 60" class="stats-sparkline" preserveAspectRatio="none">
-                            <path d="${phSparkline}" fill="none" stroke="#64b5f6" stroke-width="2"/>
+                            <path d="${phSparkline}" fill="none" stroke="#f2b155" stroke-width="2"/>
                         </svg>
                     ` : ''}
                     <div class="stats-sublist">
@@ -1258,12 +1300,13 @@ function openStatisticsModal() {
                         ${statRow('ammonia', 'Ammonia', latest.ammonia, ' ppm')}
                         ${statRow('nitrite', 'Nitrite', latest.nitrite, ' ppm')}
                         ${statRow('nitrate', 'Nitrate', latest.nitrate, ' ppm')}
+                        ${typeof latest.salinity === 'number' ? statRow('salinity', 'Salinity', latest.salinity, ' ppt') : ''}
                         <div class="stats-row"><span>Temperature</span><span>${latest.temperature}°C</span></div>
                     </div>
                     <div class="stats-sublist">
                         <div class="stats-sublist-title">History</div>
                         ${sortedWaterLogs.slice().reverse().map(w => `
-                            <div class="stats-row"><span>${w.date}</span><span>pH ${w.ph} · NH₃ ${w.ammonia} · NO₂ ${w.nitrite} · NO₃ ${w.nitrate} · ${w.temperature}°C</span></div>
+                            <div class="stats-row"><span>${w.date}</span><span>pH ${w.ph} · NH₃ ${w.ammonia} · NO₂ ${w.nitrite} · NO₃ ${w.nitrate}${typeof w.salinity === 'number' ? ' · Sal ' + w.salinity + 'ppt' : ''} · ${w.temperature}°C</span></div>
                         `).join('')}
                     </div>
                 ` : '<p class="schedule-empty">No water quality readings logged yet — click 💧 Water Quality to add one.</p>'}
@@ -1468,7 +1511,7 @@ document.querySelector('.top-buttons').appendChild(statsBtn);
 
 const waterQualityBtn = document.createElement('button');
 waterQualityBtn.textContent = '💧 Water Quality';
-waterQualityBtn.onclick = logWaterQuality;
+waterQualityBtn.onclick = openWaterQualityModal;
 waterQualityBtn.style.cssText = `
     padding: 10px 20px;
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1492,12 +1535,12 @@ document.querySelector('.top-buttons').appendChild(waterQualityBtn);
 
 // ===== SCHEDULE / CALENDAR =====
 const SCHEDULE_EVENT_META = {
-    reminder: { icon: '📅', color: '#64b5f6' },
+    reminder: { icon: '📅', color: '#f2b155' },
     concern: { icon: '🚨', color: '#e74c3c' },
     health: { icon: '🏥', color: '#2ecc71' },
     feeding: { icon: '🍽️', color: '#f39c12' },
     water: { icon: '💧', color: '#00bcd4' },
-    added: { icon: '🐟', color: '#8899aa' }
+    added: { icon: '🐟', color: '#8fa39a' }
 };
 
 function buildScheduleEvents() {
@@ -1736,7 +1779,7 @@ scheduleStyle.textContent = `
     .schedule-content {
         position: relative;
         z-index: 1;
-        background: linear-gradient(145deg, #132f4c, #0d2137);
+        background: linear-gradient(145deg, #173832, #0f221e);
         border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 20px;
         padding: 30px;
@@ -1751,7 +1794,7 @@ scheduleStyle.textContent = `
         font-size: 1.8em;
         font-weight: 600;
         margin-bottom: 20px;
-        color: #64b5f6;
+        color: #f2b155;
     }
     .schedule-close {
         position: absolute;
@@ -1774,7 +1817,7 @@ scheduleStyle.textContent = `
     }
     .schedule-section h3 {
         font-size: 1.05em;
-        color: #b0c4de;
+        color: #cbb896;
         margin-bottom: 12px;
         font-weight: 600;
     }
@@ -1783,7 +1826,7 @@ scheduleStyle.textContent = `
         align-items: flex-start;
         gap: 12px;
         background: rgba(255, 255, 255, 0.04);
-        border-left: 3px solid #64b5f6;
+        border-left: 3px solid #f2b155;
         border-radius: 10px;
         padding: 12px 14px;
         margin-bottom: 8px;
@@ -1801,12 +1844,12 @@ scheduleStyle.textContent = `
         color: #e0e0e0;
     }
     .schedule-item-subtitle {
-        color: #8899aa;
+        color: #8fa39a;
         font-size: 0.85em;
         margin-top: 2px;
     }
     .schedule-item-date {
-        color: #64b5f6;
+        color: #f2b155;
         font-size: 0.78em;
         margin-top: 4px;
     }
@@ -1833,7 +1876,7 @@ scheduleStyle.textContent = `
         background: rgba(46, 204, 113, 0.35);
     }
     .schedule-empty {
-        color: #8899aa;
+        color: #8fa39a;
         font-size: 0.9em;
     }
     .schedule-icon-btn {
@@ -1888,18 +1931,18 @@ scheduleStyle.textContent = `
     .stats-value {
         font-size: 1.4em;
         font-weight: 700;
-        color: #64b5f6;
+        color: #f2b155;
     }
     .stats-label {
         font-size: 0.75em;
-        color: #8899aa;
+        color: #8fa39a;
         margin-top: 2px;
     }
     .stats-sublist {
         margin-bottom: 16px;
     }
     .stats-sublist-title {
-        color: #b0c4de;
+        color: #cbb896;
         font-weight: 600;
         font-size: 0.9em;
         margin-bottom: 8px;
@@ -1921,6 +1964,33 @@ scheduleStyle.textContent = `
         width: 100%;
         height: 60px;
         margin-bottom: 12px;
+    }
+    .schedule-form {
+        margin-bottom: 16px;
+    }
+    .schedule-form label {
+        display: block;
+        margin-bottom: 14px;
+        color: #cbb896;
+        font-size: 0.9em;
+        font-weight: 500;
+    }
+    .schedule-form input {
+        width: 100%;
+        padding: 10px 14px;
+        margin-top: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        color: #e0e0e0;
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.95em;
+        transition: all 0.3s;
+    }
+    .schedule-form input:focus {
+        outline: none;
+        border-color: #e8935a;
+        background: rgba(255, 255, 255, 0.08);
     }
 `;
 document.head.appendChild(scheduleStyle);
