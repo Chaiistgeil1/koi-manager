@@ -2114,3 +2114,13 @@ function init() {
 
 // Start the app
 init();
+
+// Register service worker for installability + offline caching.
+// (Not supported by iOS Safari's home-screen web apps, but harmless there.)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => {
+            console.warn('Service worker registration failed:', err);
+        });
+    });
+}
