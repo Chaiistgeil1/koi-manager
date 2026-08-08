@@ -238,6 +238,13 @@ function getLocalDateString(d) {
     return `${year}-${month}-${day}`;
 }
 
+function getLocalTimeString(d) {
+    d = d || new Date();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+}
+
 // ===== NOTIFICATION SYSTEM =====
 function showNotification(message) {
     let notification = document.getElementById('saveNotification');
@@ -1061,6 +1068,9 @@ function openWaterQualityModal() {
                 <label>Date
                     <input type="date" id="wqDate" value="${getLocalDateString()}">
                 </label>
+                <label>Time
+                    <input type="time" id="wqTime" value="${getLocalTimeString()}">
+                </label>
             </div>
             <button class="schedule-add-btn" id="wqSaveBtn">💾 Save Reading</button>
         </div>
@@ -1082,13 +1092,14 @@ function saveWaterQualityFromModal() {
     const salinity = parseFloat(document.getElementById('wqSalinity').value);
     const temperature = parseInt(document.getElementById('wqTemp').value);
     const date = document.getElementById('wqDate').value;
+    const time = document.getElementById('wqTime').value;
 
-    if ([ph, ammonia, nitrite, nitrate, salinity, temperature].some(isNaN) || !date) {
+    if ([ph, ammonia, nitrite, nitrate, salinity, temperature].some(isNaN) || !date || !time) {
         alert('Please fill in every field.');
         return;
     }
 
-    waterLogs.push({ ph, ammonia, nitrite, nitrate, salinity, temperature, date });
+    waterLogs.push({ ph, ammonia, nitrite, nitrate, salinity, temperature, date, time });
     saveWaterLogs();
 
     const todayReminder = reminders.find(r => r.type === 'Water Quality Check' && r.date === getLocalDateString() && !r.completed);
@@ -1234,7 +1245,7 @@ function openStatisticsModal() {
     const totalCosts = costRecords.reduce((sum, r) => sum + r.amount, 0);
     const totalPhotos = Object.values(fishGalleries).flat().length;
 
-    const sortedWaterLogs = [...waterLogs].sort((a, b) => a.date.localeCompare(b.date));
+    const sortedWaterLogs = [...waterLogs].sort((a, b) => `${a.date} ${a.time || ''}`.localeCompare(`${b.date} ${b.time || ''}`));
 
     const statRow = (param, label, value, unit) => `
         <div class="stats-row">
@@ -1311,7 +1322,7 @@ function openStatisticsModal() {
                     <div class="stats-sublist">
                         <div class="stats-sublist-title">History</div>
                         ${sortedWaterLogs.slice().reverse().map(w => `
-                            <div class="stats-row"><span>${w.date}</span><span>pH ${w.ph} · NH₃ ${w.ammonia} · NO₂ ${w.nitrite} · NO₃ ${w.nitrate}${typeof w.salinity === 'number' ? ' · Sal ' + w.salinity + 'ppt' : ''} · ${w.temperature}°C</span></div>
+                            <div class="stats-row"><span>${w.date}${w.time ? ' ' + w.time : ''}</span><span>pH ${w.ph} · NH₃ ${w.ammonia} · NO₂ ${w.nitrite} · NO₃ ${w.nitrate}${typeof w.salinity === 'number' ? ' · Sal ' + w.salinity + 'ppt' : ''} · ${w.temperature}°C</span></div>
                         `).join('')}
                     </div>
                 ` : '<p class="schedule-empty">No water quality readings logged yet — click 💧 Water Quality to add one.</p>'}
@@ -1587,7 +1598,7 @@ function buildScheduleEvents() {
         events.push({
             date: w.date,
             type: 'water',
-            title: 'Water quality check',
+            title: `Water quality check${w.time ? ' — ' + w.time : ''}`,
             subtitle: `pH ${w.ph} · Ammonia ${w.ammonia} · Nitrite ${w.nitrite} · Nitrate ${w.nitrate} · ${w.temperature}°C`
         });
     });
