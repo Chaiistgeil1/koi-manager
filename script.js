@@ -109,36 +109,56 @@ function metaSnapshotToState(metaData) {
     feedingSchedule = (metaData && metaData.feedingSchedule && metaData.feedingSchedule.length) ? metaData.feedingSchedule : DEFAULT_FEEDING_SCHEDULE;
 }
 
+// Each fish is written as its own independent request (not one shared batch)
+// so that a single oversized document (e.g. too many/large photos) can only
+// ever fail that one fish's save — it can no longer silently block every
+// other fish's save too, which is what caused fish to "vanish" before.
 async function syncAllToFirestore() {
     if (!db) return;
-    try {
-        const batch = db.batch();
-        fishData.forEach(fish => {
-            const ref = db.collection('fish').doc(String(fish.id));
-            batch.set(ref, {
-                name: fish.name,
-                variety: fish.variety,
-                length: fish.length,
-                date: fish.date,
-                status: fish.status,
-                notes: fish.notes,
-                image: fish.image || '',
-                pondId: fish.pondId || null,
-                growth: growthData[fish.id] || [],
-                feeding: feedingLogs.filter(l => l.fishId === fish.id),
-                health: healthRecords.filter(r => r.fishId === fish.id),
-                gallery: fishGalleries[fish.id] || [],
-                family: familyTrees[fish.id] || null,
-                breeding: breedingRecords.filter(r => r.fishId === fish.id),
-                competitions: competitionRecords.filter(r => r.fishId === fish.id),
-                costs: costRecords.filter(r => r.fishId === fish.id)
-            });
-        });
-        batch.set(db.collection('meta').doc('shared'), { pondSections, waterLogs, reminders, feedingSchedule });
-        await batch.commit();
-    } catch (e) {
-        console.error('Firestore sync error:', e);
-        showNotification('⚠️ Sync failed — check internet connection');
+
+    const fishWrites = fishData.map(fish => {
+        const payload = {
+            name: fish.name,
+            variety: fish.variety,
+            length: fish.length,
+            date: fish.date,
+            status: fish.status,
+            notes: fish.notes,
+            image: fish.image || '',
+            pondId: fish.pondId || null,
+            growth: growthData[fish.id] || [],
+            feeding: feedingLogs.filter(l => l.fishId === fish.id),
+            health: healthRecords.filter(r => r.fishId === fish.id),
+            gallery: fishGalleries[fish.id] || [],
+            family: familyTrees[fish.id] || null,
+            breeding: breedingRecords.filter(r => r.fishId === fish.id),
+            competitions: competitionRecords.filter(r => r.fishId === fish.id),
+            costs: costRecords.filter(r => r.fishId === fish.id)
+        };
+        return db.collection('fish').doc(String(fish.id)).set(payload)
+            .then(() => ({ ok: true, name: fish.name }))
+            .catch(err => ({ ok: false, name: fish.name, err }));
+    });
+
+    const metaWrite = db.collection('meta').doc('shared')
+        .set({ pondSections, waterLogs, reminders, feedingSchedule })
+        .then(() => ({ ok: true, name: 'Schedule/settings' }))
+        .catch(err => ({ ok: false, name: 'Schedule/settings', err }));
+
+    const results = await Promise.all([...fishWrites, metaWrite]);
+    const failures = results.filter(r => !r.ok);
+
+    if (failures.length) {
+        console.error('Firestore sync failures:', failures);
+        const names = failures.map(f => f.name).join(', ');
+        const isSizeIssue = failures.some(f =>
+            f.err && (f.err.code === 'invalid-argument' || /longer than|exceeds|too large/i.test(f.err.message || ''))
+        );
+        showNotification(
+            isSizeIssue
+                ? `⚠️ Couldn't save ${names} — photos too large, try fewer/smaller ones`
+                : `⚠️ Couldn't save ${names} — check internet connection`
+        );
     }
 }
 
@@ -281,7 +301,7 @@ function showNotification(message) {
 }
 
 // ===== IMAGE COMPRESSION =====
-function compressImage(file, maxWidth = 800) {
+function compressImage(file, maxWidth = 800, quality = 0.7) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -290,17 +310,17 @@ function compressImage(file, maxWidth = 800) {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                
+
                 if (width > maxWidth) {
                     height = (maxWidth / width) * height;
                     width = maxWidth;
                 }
-                
+
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.7));
+                resolve(canvas.toDataURL('image/jpeg', quality));
             };
             img.onerror = reject;
             img.src = e.target.result;
@@ -308,6 +328,25 @@ function compressImage(file, maxWidth = 800) {
         reader.onerror = reject;
         reader.readAsDataURL(file);
     });
+}
+
+// Each Firestore document (a fish, with its gallery) must stay under ~1MiB.
+// Compress harder and harder until the image is safely small, instead of
+// silently producing an oversized photo that later fails to save at all.
+const MAX_IMAGE_BYTES = 300 * 1024;
+async function compressImageSafe(file, maxWidth = 800) {
+    const steps = [
+        [maxWidth, 0.7],
+        [Math.round(maxWidth * 0.75), 0.6],
+        [Math.round(maxWidth * 0.55), 0.5],
+        [Math.round(maxWidth * 0.4), 0.35]
+    ];
+    let result = '';
+    for (const [w, q] of steps) {
+        result = await compressImage(file, w, q);
+        if (result.length <= MAX_IMAGE_BYTES) return result;
+    }
+    return result; // smallest attempt, even if still over — better than nothing
 }
 
 // ===== MODAL FUNCTIONS =====
@@ -353,7 +392,7 @@ async function saveFish() {
             saveFishBtn.disabled = true;
             
             // Compress and convert image
-            imageData = await compressImage(imageFile, 800);
+            imageData = await compressImageSafe(imageFile, 800);
             
         } catch (error) {
             console.error('Image processing error:', error);
@@ -834,7 +873,7 @@ function addGalleryImage(fishId) {
         
         for (const file of files) {
             try {
-                const compressed = await compressImage(file, 600);
+                const compressed = await compressImageSafe(file, 600);
                 fishGalleries[fishId].push({
                     url: compressed,
                     date: getLocalDateString(),
